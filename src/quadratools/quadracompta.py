@@ -204,15 +204,6 @@ class QueryCompta(object):
         self.cursor.execute(sql)
         return self.cursor.fetchall()[0]
 
-    # def list_dossier_annuel(self):
-    #     list_da = []
-    #     path = self.chem_base.replace("qcompta.mdb", "")
-    #     for item in os.scandir(path):
-    #         if item.name.upper().startswith("QDR"):
-    #             name = item.name.split(".")[0]
-    #             list_da.append((name, item.path))
-    #     return list_da
-
     def insert_compte(self, compte):
         """
         Ajout d'un nouveau compte dans la table Comptes
