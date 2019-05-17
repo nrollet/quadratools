@@ -165,6 +165,22 @@ class QueryCompta(object):
         self.conx.commit()
         self.conx.close()
 
+    def exec_select(self, sql_string):
+        """
+        Pour exécuter une requete sql passée en argument
+        """
+        data = ""
+        try:
+            data = self.cursor.execute(sql_string).fetchall()
+        except pyodbc.Error:
+            logging.error("erreur requete base {} \n {}".format(
+                self.chem_base, sys.exc_info()[1]))
+        except:
+            logging.error("erreur ouverture base {} \n {}".format(
+                self.chem_base, sys.exc_info()[0]))
+        return data
+
+
     def journal(self, code_journal):
         """
         Récupère le solde de tous les comptes d'un journal donné
@@ -553,6 +569,69 @@ class QueryCompta(object):
                         logging.error("Echec copie {}, {}".format(source_image_path, e))
 
             return uid
+    
+    def calc_centralisateurs(self):
+        sql = """
+        SELECT
+            NBL.CodeJournal, NBL.PeriodeEcriture, NBL.Folio,
+            NBL.NbLigneFolio, PRL.ProchaineLigne,
+            CLI.DebitClient, CLI.CreditClient,
+            FRN.DebitFournisseur, FRN.CreditFournisseur,
+            BIL.DebitClasse15, BIL.CreditClasse15,
+            EXP.DebitClasse67, EXP.CreditClasse67
+        FROM
+            (((((SELECT CodeJournal, PeriodeEcriture, Folio, COUNT(*) AS NbLigneFolio
+            FROM Ecritures
+            WHERE TypeLigne='E'
+            GROUP BY CodeJournal, PeriodeEcriture, Folio) NBL
+            LEFT JOIN
+            (SELECT CodeJournal, PeriodeEcriture, Folio, (MAX(LigneFolio) + 10) AS ProchaineLigne
+            FROM Ecritures
+            WHERE TypeLigne='E'
+            GROUP BY CodeJournal, PeriodeEcriture, Folio) PRL
+            ON NBL.CodeJournal=PRL.CodeJournal AND
+                NBL.PeriodeEcriture=PRL.PeriodeEcriture AND
+                NBL.Folio=PRL.Folio)
+            LEFT JOIN
+            (SELECT CodeJournal, PeriodeEcriture, Folio, SUM(MontantTenuDebit) AS DebitClient, SUM(MontantTenuCredit) AS CreditClient
+            FROM Ecritures
+            WHERE TypeLigne='E'
+                AND NumeroCompte LIKE '9%'
+            GROUP BY CodeJournal, PeriodeEcriture, Folio) CLI
+            ON NBL.CodeJournal=CLI.CodeJournal AND
+                NBL.PeriodeEcriture=CLI.PeriodeEcriture AND
+                NBL.Folio=CLI.Folio)
+            LEFT JOIN
+            (SELECT CodeJournal, PeriodeEcriture, Folio, SUM(MontantTenuDebit) AS DebitFournisseur, SUM(MontantTenuCredit) AS CreditFournisseur
+            FROM Ecritures
+            WHERE TypeLigne='E'
+                AND NumeroCompte LIKE '0%'
+            GROUP BY CodeJournal, PeriodeEcriture, Folio) FRN
+            ON NBL.CodeJournal=FRN.CodeJournal AND
+                NBL.PeriodeEcriture=FRN.PeriodeEcriture AND
+                NBL.Folio=FRN.Folio)
+            LEFT JOIN
+            (SELECT CodeJournal, PeriodeEcriture, Folio, SUM(MontantTenuDebit) AS DebitClasse15, SUM(MontantTenuCredit) AS CreditClasse15
+            FROM Ecritures
+            WHERE TypeLigne='E'
+                AND NumeroCompte LIKE '[1-5]%'
+            GROUP BY CodeJournal, PeriodeEcriture, Folio) BIL
+            ON NBL.CodeJournal=BIL.CodeJournal AND
+                NBL.PeriodeEcriture=BIL.PeriodeEcriture AND
+                NBL.Folio=BIL.Folio)
+            LEFT JOIN
+            (SELECT CodeJournal, PeriodeEcriture, Folio, SUM(MontantTenuDebit) AS DebitClasse67, SUM(MontantTenuCredit) AS CreditClasse67
+            FROM Ecritures
+            WHERE TypeLigne='E'
+                AND NumeroCompte LIKE '[6-7]%'
+            GROUP BY CodeJournal, PeriodeEcriture, Folio) EXP
+            ON NBL.CodeJournal=EXP.CodeJournal AND
+                NBL.PeriodeEcriture=EXP.PeriodeEcriture AND
+                NBL.Folio=EXP.Folio
+        WHERE NBL.CodeJournal<>'AN'
+        """
+        data = self.exec_select(sql)
+        return data      
 
     def maj_centralisateurs(self):
         """
@@ -617,6 +696,13 @@ class QueryCompta(object):
                 NBL.PeriodeEcriture=EXP.PeriodeEcriture AND
                 NBL.Folio=EXP.Folio
         WHERE NBL.CodeJournal<>'AN'
+        UNION
+        SELECT 
+        CodeJournal, '', 0, NbLigneFolio, 
+        ProchaineLigne, DebitClient, CreditClient,
+        DebitFournisseur, FRN.CreditFournisseur,
+        DebitClasse15, CreditClasse15,
+        DebitClasse67, CreditClasse67
         """
         data = self.cursor.execute(sql).fetchall()
 
