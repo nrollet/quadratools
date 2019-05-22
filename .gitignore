@@ -1,5 +1,7 @@
 *.py[cod]
 venv
+*.mdb
+*.ldb
 
 # C extensions
 *.so
