@@ -587,6 +587,9 @@ class QueryCompta(object):
         logging.info("Mise à jour de la table Centralisateurs")
         count = 1
 
+        for index, row in enumerate(data):
+            data[i]
+
         for (journal, periode, folio,
              nbligne, prligne, 
              debitcli, creditcli,
