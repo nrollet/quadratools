@@ -574,6 +574,15 @@ class QueryCompta(object):
     def calc_centralisateurs(self):
         sql = SqlStr.SEL_CENTRAL
         data = self.exec_select(sql)
+
+        # modification sur la requête :
+        for index, row in enumerate(data):
+            # La valeurs None -> 0
+            row = [0 if x==None else x for x in row]
+            # Calcul du numéro la prochaine ligne dans le folio (à la dizaine supérieure)
+            if row[4]:
+                row[4] = (int(row[4]/10)+1)*10
+            data[index] = row
         return data      
 
     def maj_centralisateurs(self):
@@ -587,8 +596,8 @@ class QueryCompta(object):
         logging.info("Mise à jour de la table Centralisateurs")
         count = 1
 
-        for index, row in enumerate(data):
-            data[i]
+        # for index, row in enumerate(data):
+        #     row = 
 
         for (journal, periode, folio,
              nbligne, prligne, 

@@ -13,7 +13,7 @@ class SqlStr:
         WHERE TypeLigne='E'
         GROUP BY CodeJournal, PeriodeEcriture, Folio) NBL
         LEFT JOIN
-        (SELECT CodeJournal, PeriodeEcriture, Folio, (MAX(LigneFolio) + 10) AS ProchaineLigne
+        (SELECT CodeJournal, PeriodeEcriture, Folio, MAX(LigneFolio) AS ProchaineLigne
         FROM Ecritures
         WHERE TypeLigne='E'
         GROUP BY CodeJournal, PeriodeEcriture, Folio) PRL
@@ -72,7 +72,7 @@ class SqlStr:
             AND CodeJournal='AN'
         GROUP BY CodeJournal) NBL
         LEFT JOIN
-        (SELECT CodeJournal, (MAX(LigneFolio) + 10) AS ProchaineLigne
+        (SELECT CodeJournal, MAX(LigneFolio) AS ProchaineLigne
         FROM Ecritures
         WHERE TypeLigne='E'
             AND CodeJournal='AN'
