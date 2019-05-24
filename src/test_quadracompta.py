@@ -16,10 +16,6 @@ def cursor(cnxn):
     yield cursor
     cnxn.rollback()
 
-def test_pass():
-    assert True, "dummy sample test"
-
-
 def test_rs(cursor):
     sql = """
     SELECT
@@ -30,4 +26,9 @@ def test_rs(cursor):
     data = cursor.execute(sql).fetchall()
     print(data)
     assert data[0][0] == "JUSTOM"
+
+def test_qc_central(cursor):
+    
+
+
 
