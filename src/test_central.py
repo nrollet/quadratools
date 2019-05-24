@@ -1,12 +1,17 @@
 import pprint
 import datetime 
-from quadratools.sqlstr import SqlStr
+import logging
+# from quadratools.sqlstr import requete_central
 from quadratools.quadracompta import QueryCompta
 
 pp = pprint.PrettyPrinter(indent=4)
 
-dbpath = "assets/frozen.mdb"
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(funcName)s\t\t%(levelname)s - %(message)s')
+
+dbpath = "assets/predi_nocent.mdb"
 # dbpath = "assets/ajusted.mdb"
+# dbpath = "//srvquadra/qappli/quadra/database/cpta/dc/000874/qcompta.mdb"
 
 Q = QueryCompta()
 Q.connect(dbpath)
@@ -40,5 +45,6 @@ for index, row in enumerate(sorted(central_ref)):
     if row not in central:
         print(index, row)
 
+Q.maj_centralisateurs()
 
 Q.close()
