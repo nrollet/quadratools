@@ -6,7 +6,7 @@ import string
 import os
 import shutil
 from datetime import datetime
-from quadratools.sqlstr import req_calc_central, req_check_central
+from quadratools.sqlstr import req_calc_central
 
 def progressbar(count, total):
     """
@@ -176,6 +176,24 @@ class QueryCompta(object):
         except pyodbc.Error:
             logging.error("erreur requete base {} \n {}".format(
                 self.chem_base, sys.exc_info()[1]))
+            logging.error("Requete SQL : {}".format(sql_string))                
+        except:
+            logging.error("erreur ouverture base {} \n {}".format(
+                self.chem_base, sys.exc_info()[0]))
+            logging.error("Requete SQL : {}".format(sql_string))
+        return data
+
+    def exec_insert(self, sql_string):
+        """
+        Pour exécuter une requete sql passée en argument
+        """
+        data = ""
+        try:
+            self.cursor.execute(sql_string)
+        except pyodbc.Error:
+            logging.error("erreur requete base {} \n {}".format(
+                self.chem_base, sys.exc_info()[1]))
+            logging.error("Requete SQL : {}".format(sql_string))                
         except:
             logging.error("erreur ouverture base {} \n {}".format(
                 self.chem_base, sys.exc_info()[0]))
@@ -579,7 +597,7 @@ class QueryCompta(object):
         # modification sur la requête :
         for index, row in enumerate(data):
             # La valeurs None -> 0
-            row = [0 if x==None else x for x in row]
+            row = [0.0 if x==None else x for x in row]
             # Mystérieusement la date repasse en string... Il faut la remettre en datetime
             # if row[1]:
             #     row[1] = datetime.strptime(row[1], "%d/%m/%Y")
@@ -594,7 +612,7 @@ class QueryCompta(object):
         Mise à jour de toute la table des centralisateurs
         """
         logging.info("purge des centralisateurs")
-        self.exec_select("DELETE * FROM Centralisateurs")
+        self.exec_select("DELETE FROM Centralisateur WHERE 1")
         data = self.calc_centralisateurs()
 
         logging.info("Mise à jour de la table Centralisateurs")
@@ -624,55 +642,9 @@ class QueryCompta(object):
                 {debit15}, {credit15}, 
                 {debit67}, {credit67})
             """
-            self.exec_select(sql)
+            self.exec_insert(sql)
             
-            # logging.debug(" ".join(["Verif pour", journal, periode.strftime("%Y-%m"), str(folio)]))
-            # sql = req_check_central(journal, periode, folio)
-            # self.exec_select(sql)
-            # # print(sql)
-            # print(self.cursor.fetchall())
-
-        #     if list(self.cursor):
-        #         logging.debug("update central {} {}".format(journal, periode))
-        #         sql = f"""
-        #             UPDATE Centralisateur 
-        #             SET NbLigneFolio={nbligne}, 
-        #             ProchaineLigne={prligne}, 
-        #             DebitClient={debitcli}, 
-        #             CreditClient={creditcli}, 
-        #             DebitFournisseur={debitfrn}, 
-        #             CreditFournisseur={creditfrn}, 
-        #             DebitClasse15={debit15}, 
-        #             CreditClasse15={credit15}, 
-        #             DebitClasse67={debit67}, 
-        #             CreditClasse67={credit67} 
-        #             WHERE 
-        #             CodeJournal='{journal}' 
-        #             AND Periode=#{periode}# 
-        #             AND Folio={folio}
-        #             """
-        #     else:
-        #         logging.debug("insert central {} {}".format(journal, periode))
-        #         sql = f"""
-        #             INSERT INTO Centralisateur 
-        #             (CodeJournal, Periode, Folio, 
-        #             NbLigneFolio, ProchaineLigne, 
-        #             DebitClient, CreditClient, 
-        #             DebitFournisseur, CreditFournisseur, 
-        #             DebitClasse15, CreditClasse15, 
-        #             DebitClasse67, CreditClasse67) 
-        #             VALUES 
-        #             ('{journal}', #{periode}#, {folio}, 
-        #             {nbligne}, {prligne}, 
-        #             {debitcli}, {creditcli}, 
-        #             {debitfrn}, {creditfrn}, 
-        #             {debit15}, {credit15}, 
-        #             {debit67}, {credit67})
-        #             """
-        #     self.exec_select(sql)
-        #     count += 1
-
-        # logging.info("Mise à jour table Centralisateurs OK")
+        logging.info("Mise à jour table Centralisateurs OK")
         return True                        
 
     def maj_solde_comptes(self):
@@ -708,10 +680,10 @@ class QueryCompta(object):
         for (Numero, Debit, Credit,
              DebitHorsEx, CreditHorsEx, NbEcritures) in data:
 
-            if Debit==None: Debit = 0
-            if Credit==None: Credit = 0
-            if DebitHorsEx==None: DebitHorsEx = 0
-            if CreditHorsEx==None: CreditHorsEx = 0
+            if Debit==None: Debit = 0.0
+            if Credit==None: Credit = 0.0
+            if DebitHorsEx==None: DebitHorsEx = 0.0
+            if CreditHorsEx==None: CreditHorsEx = 0.0
             if NbEcritures==None: NbEcritures = 0
 
             sql = f"""
@@ -965,10 +937,11 @@ if __name__ == '__main__':
     QC.connect(cpta)
     print(QC.preffrn)
 
-    QDA = QueryDossierAnnuel()
-    QDA.connect(da)
-    print(QDA.ajout_piece("40810000", "C:/temp/Leroy.pdf"))
-    print(QDA.ajout_piece("37100000", "C:/temp/Leroy.pdf"))
+
+    # QDA = QueryDossierAnnuel()
+    # QDA.connect(da)
+    # print(QDA.ajout_piece("40810000", "C:/temp/Leroy.pdf"))
+    # print(QDA.ajout_piece("37100000", "C:/temp/Leroy.pdf"))
     # pp.pprint(QDA.cycles)
     # print("7971", QDA.find_code_cycle("7971"))
     # print("9NEWTON", QDA.find_code_cycle("9NEWTON", QC.prefcli))
@@ -978,7 +951,7 @@ if __name__ == '__main__':
     # print(QDA.commentaires_indice("99999999"))
     # QDA.commentaire_insertpj("40810000", "toto.pdf")
     # QDA.commentaire_insertpj("37100000", "titi.pdf")
-    QDA.close()
+    # QDA.close()
     QC.close()
     # print(list_dossier_annuel(cpta))
     # pp.pprint(data["datevalid"])

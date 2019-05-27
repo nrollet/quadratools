@@ -106,19 +106,50 @@ def req_calc_central(prefix_cli, prefix_frn):
     """.format(prefix_cli, prefix_frn)
     return sql
 
-def req_check_central(journal, periode, folio):
-    if journal == "AN":
-        sql = f"""
-            SELECT * FROM Centralisateur 
-            WHERE CodeJournal='{journal}' 
-            """    
-    else:    
-        sql = f"""
-            SELECT * FROM Centralisateur 
-            WHERE CodeJournal='{journal}' 
-            AND Periode=#{periode}# 
-            AND Folio={folio} 
-            """
+# def req_check_central(journal, periode, folio):
+#     if journal == "AN":
+#         sql = f"""
+#             SELECT * FROM Centralisateur 
+#             WHERE CodeJournal='{journal}' 
+#             """    
+#     else:    
+#         sql = f"""
+#             SELECT * FROM Centralisateur 
+#             WHERE CodeJournal='{journal}' 
+#             AND Periode=#{periode}# 
+#             AND Folio={folio} 
+#             """
+#     return sql
+
+def req_calc_sld_comptes(dt_exe_fin):
+    """
+    Requête pour calculer les soldes de tous les comptes
+    a partir de la table écriture
+    """
+    sql = f"""
+    SELECT NB.NumeroCompte,
+        N.debit, N.credit,
+        N1.debit, N1.credit,
+        NB.NbEcritures
+    FROM ((
+        SELECT NumeroCompte, COUNT(*) AS NbEcritures
+        FROM Ecritures
+        WHERE TypeLigne='E'
+        GROUP BY NumeroCompte) NB
+        LEFT JOIN(
+        SELECT NumeroCompte, SUM(MontantTenuDebit) AS debit, SUM(MontantTenuCredit) as credit
+        FROM Ecritures
+        WHERE TypeLigne='E'
+        GROUP BY NumeroCompte) N
+        ON NB.NumeroCompte=N.Numerocompte)
+        LEFT JOIN (
+        SELECT NumeroCompte, SUM(MontantTenuDebit) AS debit, SUM(MontantTenuCredit) as credit
+        FROM Ecritures
+        WHERE PeriodeEcriture>=#{dt_exe_fin}# 
+        AND TypeLigne='E'
+        GROUP BY NumeroCompte) N1
+        ON NB.NumeroCompte=N1.NumeroCompte
+        """
     return sql
 
 if __name__ == '__main__':

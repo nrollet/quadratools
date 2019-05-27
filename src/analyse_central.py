@@ -7,9 +7,9 @@ from quadratools.quadracompta import QueryCompta
 pp = pprint.PrettyPrinter(indent=4)
 
 logging.basicConfig(level=logging.DEBUG,
-                    format='%(funcName)s\t\t%(levelname)s - %(message)s')
+                    format='%(module)s-%(funcName)s\t\t%(levelname)s - %(message)s')
 
-dbpath = "assets/predi_nocent.mdb"
+dbpath = "assets/predi.mdb"
 # dbpath = "assets/ajusted.mdb"
 # dbpath = "//srvquadra/qappli/quadra/database/cpta/dc/000874/qcompta.mdb"
 
@@ -45,6 +45,6 @@ for index, row in enumerate(sorted(central_ref)):
     if row not in central:
         print(index, row)
 
-Q.maj_centralisateurs()
+# Q.maj_centralisateurs()
 
 Q.close()
