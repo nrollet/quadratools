@@ -121,3 +121,69 @@ FRN
 BIL
     ON NBL.CodeJournal=BIL.CodeJournal
     )
+/*===============================*/
+SELECT N.NumeroCompte,
+    N.debit, N.credit,
+    N1.debit, N1.credit,
+    N.NbEcritures
+FROM (
+    SELECT NumeroCompte,
+        ROUND(SUM(MontantTenuDebit),2) AS debit, ROUND(SUM(MontantTenuCredit),2) as credit,
+        COUNT(*) AS NbEcritures
+    FROM Ecritures
+    WHERE TypeLigne='E'
+    GROUP BY NumeroCompte) N
+    LEFT JOIN (
+    SELECT NumeroCompte, ROUND(SUM(MontantTenuDebit),2) AS debit, ROUND(SUM(MontantTenuCredit),2) as credit
+    FROM Ecritures
+    WHERE PeriodeEcriture>=#2018-12-31# 
+        AND TypeLigne='E'
+GROUP BY NumeroCompte
+) N1
+    ON N.NumeroCompte=N1.NumeroCompte
+UNION
+SELECT N.Compte,
+    N.debit, N.credit,
+    N1.debit, N1.credit,
+    N.NbEcritures
+FROM ((
+    SELECT
+        "401000" AS Compte, COUNT(*) AS NbEcritures,
+        ROUND(SUM(MontantTenuDebit),2) AS debit, ROUND(SUM(MontantTenuCredit),2) as credit
+    FROM Ecritures
+    WHERE TypeLigne='E'
+        AND NumeroCompte LIKE '0*') N
+    LEFT JOIN
+    (
+    SELECT
+        "401000" AS Compte, COUNT(*) AS NbEcritures,
+        ROUND(SUM(MontantTenuDebit),2) AS debit, ROUND(SUM(MontantTenuCredit),2) as credit
+    FROM Ecritures
+    WHERE TypeLigne='E'
+        AND NumeroCompte LIKE '0*'
+        AND PeriodeEcriture>=#2018-12-31#    )
+N1
+    ON N.Compte=N1.Compte)
+UNION
+SELECT N.Compte,
+    N.debit, N.credit,
+    N1.debit, N1.credit,
+    N.NbEcritures
+FROM ((
+    SELECT
+        "411000" AS Compte, COUNT(*) AS NbEcritures,
+        ROUND(SUM(MontantTenuDebit),2) AS debit, ROUND(SUM(MontantTenuCredit),2) as credit
+    FROM Ecritures
+    WHERE TypeLigne='E'
+        AND NumeroCompte LIKE '9*') N
+    LEFT JOIN
+    (
+    SELECT
+        "411000" AS Compte, COUNT(*) AS NbEcritures,
+        ROUND(SUM(MontantTenuDebit),2) AS debit, ROUND(SUM(MontantTenuCredit),2) as credit
+    FROM Ecritures
+    WHERE TypeLigne='E'
+        AND NumeroCompte LIKE '9*'
+        AND PeriodeEcriture>=#2018-12-31#    )
+N1
+    ON N.Compte=N1.Compte)

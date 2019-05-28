@@ -1,5 +1,6 @@
 import pytest
 import pyodbc
+from random import choice
 from quadratools.quadracompta import QueryCompta
 
 
@@ -27,25 +28,24 @@ def test_rs(cursor):
     FROM Dossier1
     """
     data = cursor.execute(sql).fetchall()
-    print(data)
     assert data[0][0] == "JUSTOM"
 
 def test_maj_centralisateurs():
     """
-    Compare une table centralisateur recalculée (QCalc)
+    Compare une table centralisateur recalculée (Qtest)
     avec une table de la base de référence (Qref)
     """
-    QCalc = QueryCompta()
-    QCalc.connect("assets/predi_nocent.mdb")
-    QCalc.maj_centralisateurs()
-    calc = QCalc.exec_select("SELECT * FROM Centralisateur")
+    Qtest = QueryCompta()
+    Qtest.connect("assets/predi_test.mdb")
+    Qtest.maj_centralisateurs()
+    calc = Qtest.exec_select("SELECT * FROM Centralisateur")
 
     QRef = QueryCompta()
-    QRef.connect("assets/predi.mdb")
+    QRef.connect("assets/predi_ref.mdb")
     ref = QRef.exec_select("SELECT * FROM Centralisateur")
 
     assert calc==ref
-    QCalc.close()
+    Qtest.close()
     QRef.close()
 
 def test_maj_solde_comptes():
@@ -55,37 +55,88 @@ def test_maj_solde_comptes():
     de la bdd de référence
     """
 
-    QCalc = QueryCompta()
-    QCalc.connect("assets/predi_nocent.mdb")  
-    QCalc.exec_select("""
+    Qtest = QueryCompta()
+    Qtest.connect("assets/predi_test.mdb")  
+    # RAZ des valeurs sur la bdd test
+    Qtest.exec_insert("""
         UPDATE Comptes 
         SET Debit=0.0,
         Credit=0.0,
         DebitHorsEx=0.0,
         CreditHorsEx=0.0,
         NbEcritures=0.0"""
-        ) # RAZ des valeurs sur la bdd test
-    QCalc.maj_solde_comptes()
-    calc = QCalc.exec_select("""
-        SELECT Comptes,
-        Debit, Credit,
-        DebitHorsEx, CreditHorsEx,
+        ) 
+    # MAJ des soldes
+    Qtest.maj_solde_comptes()
+    # Collecte table Comptes
+    data_test = Qtest.exec_select(
+        """
+        SELECT Numero, 
+        ROUND(Debit, 2), ROUND(Credit, 2), 
+        ROUND(DebitHorsEx,2), ROUND(CreditHorsEx, 2), 
         NbEcritures
         FROM Comptes"""
-    )        
+    )   
+
     QRef = QueryCompta()
-    QRef.connect("assets/predi.mdb")
-    ref = QRef.exec_select(
+    QRef.connect("assets/predi_ref.mdb")
+    data_ref = QRef.exec_select(
         """
-        SELECT Comptes,
-        Debit, Credit,
-        DebitHorsEx, CreditHorsEx,
+        SELECT Numero, 
+        ROUND(Debit, 2), ROUND(Credit, 2), 
+        ROUND(DebitHorsEx,2), ROUND(CreditHorsEx, 2), 
         NbEcritures
         FROM Comptes"""
     )
-    assert calc==ref
-    QCalc.close()
+    assert data_test==data_ref
+    Qtest.close()
     QRef.close()
+
+def test_insert_compte():
+    """
+    Supprime un compte de la base test
+    puis le recréé pour le comparer
+    avec la abse de référence
+    """
+    Qtest = QueryCompta()
+    Qtest.connect("assets/predi_test.mdb")
+    # Sélection d'un compte fourn/general au hasard
+
+    fourn = choice(
+        list((x for x in Qtest.plan.keys() if x.startswith("0")))
+    )
+    gener = choice(
+        list((x for x in Qtest.plan.keys() if x.startswith("2")))
+    )
+    print("\n", f"fourn:{fourn}", f"gener:{gener}")
+    # Suppression
+    Qtest.exec_insert(f"""
+        DELETE FROM Comptes WHERE Numero='{fourn}' OR Numero='{gener}'
+    """)    
+    Qtest.insert_compte(fourn)
+    Qtest.insert_compte(gener)
+    data_test = Qtest.exec_select(
+        f"""SELECT 
+            Numero, Type, TypeCollectif,
+            Debit, Credit, DebitHorsEx, CreditHorsEx,
+            Collectif,  NbEcritures, ProchaineLettre, MargeTheorique,
+            CompteInactif, QuantiteNbEntier, DetailCloture
+            FROM Comptes WHERE Numero='{fourn}' OR Numero='{gener}'""")
+
+
+    QRef = QueryCompta()
+    QRef.connect("assets/predi_ref.mdb")
+    data_ref = QRef.exec_select(
+        f"""SELECT 
+            Numero, Type, TypeCollectif,
+            Debit, Credit, DebitHorsEx, CreditHorsEx,
+            Collectif,  NbEcritures, ProchaineLettre, MargeTheorique,
+            CompteInactif, QuantiteNbEntier, DetailCloture
+            FROM Comptes WHERE Numero='{fourn}' OR Numero='{gener}'""")
+    print(data_test)
+    assert data_test==data_ref
+    Qtest.close()
+    QRef.close()  
 
 
 

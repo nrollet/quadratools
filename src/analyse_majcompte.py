@@ -5,51 +5,42 @@ from quadratools.quadracompta import QueryCompta
 
 pp = pprint.PrettyPrinter(indent=4)
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(module)s-%(funcName)s\t\t%(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.DEBUG, format="%(module)s-%(funcName)s\t\t%(levelname)s - %(message)s"
+)
 
-Compte = namedtuple("compte", ["numero", "debit", "credit", "debitHex", "creditHex", "nbecr"])
+Compte = namedtuple(
+    "compte", ["numero", "debit", "credit", "debitHex", "creditHex", "nbecr"]
+)
 
 dbpath = "assets/predi.mdb"
+# dbpath = "//srvquadra/qappli/quadra/database/cpta/dc/DEMO/qcompta.mdb"
 
 Q = QueryCompta()
 Q.connect(dbpath)
 
-sql = f"""
-SELECT NB.NumeroCompte,
-    N.debit, N.credit,
-    N1.debit, N1.credit,
-    NB.NbEcritures
-FROM ((
-    SELECT NumeroCompte, COUNT(*) AS NbEcritures
-    FROM Ecritures
-    WHERE TypeLigne='E'
-    GROUP BY NumeroCompte) NB
-    LEFT JOIN(
-    SELECT NumeroCompte, SUM(MontantTenuDebit) AS debit, SUM(MontantTenuCredit) as credit
-    FROM Ecritures
-    WHERE TypeLigne='E'
-    GROUP BY NumeroCompte) N
-    ON NB.NumeroCompte=N.Numerocompte)
-    LEFT JOIN (
-    SELECT NumeroCompte, SUM(MontantTenuDebit) AS debit, SUM(MontantTenuCredit) as credit
-    FROM Ecritures
-    WHERE PeriodeEcriture>=#{Q.exefin}# 
-    AND TypeLigne='E'
-    GROUP BY NumeroCompte) N1
-    ON NB.NumeroCompte=N1.NumeroCompte
-    """ 
-calc = Q.exec_select(sql)
+data = Q.calc_solde_comptes()
+
 calc_list = []
-for row in calc:
-    ntlist.append(Compte(*row))
+for row in data:
+    calc_list.append(Compte(*row))
 
 sql = f"""
-    SELECT Numero, Debit, Credit, DebitHorsEx, CreditHorsEx, NbEcritures
+    SELECT Numero, 
+    ROUND(Debit, 2), ROUND(Credit, 2), 
+    ROUND(DebitHorsEx,2), ROUND(CreditHorsEx, 2), 
+    NbEcritures
     FROM Comptes
 """
-ref = Q.exec_select(sql)
+data = Q.exec_select(sql)
+ref_list = []
+for row in data:
+    ref_list.append(Compte(*row))
 
-pp.pprint(ntlist)
+for index, row in enumerate(calc_list):
+    for item in ref_list:
+        if row.numero == item.numero:
+            if row != item:
+                print(row, "\n\t", item)
 
 Q.close()

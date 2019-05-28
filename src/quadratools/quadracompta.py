@@ -187,9 +187,10 @@ class QueryCompta(object):
         """
         Pour exécuter une requete sql passée en argument
         """
-        data = ""
+        status = False
         try:
             self.cursor.execute(sql_string)
+            status = True
         except pyodbc.Error:
             logging.error("erreur requete base {} \n {}".format(
                 self.chem_base, sys.exc_info()[1]))
@@ -198,7 +199,7 @@ class QueryCompta(object):
             logging.error("erreur ouverture base {} \n {}".format(
                 self.chem_base, sys.exc_info()[0]))
             logging.error("Requete SQL : {}".format(sql_string))
-        return data
+        return status
 
 
     def journal(self, code_journal):
@@ -422,7 +423,7 @@ class QueryCompta(object):
         RapproBancaireOk = False
         NoLotEcritures = 0
         PieceInterne = 0
-        CodeOperateur = "QFIX"
+        CodeOperateur = "QTOO"
         Etat = 0
         NumLigne = 0
         TypeLigne = "E"
@@ -647,44 +648,93 @@ class QueryCompta(object):
         logging.info("Mise à jour table Centralisateurs OK")
         return True                        
 
-    def maj_solde_comptes(self):
-
+    def calc_solde_comptes(self):
+        """
+        Requête pour calculer les soldes de tous les comptes
+        a partir de la table écriture
+        """
         sql = f"""
-        SELECT NB.NumeroCompte,
+        SELECT N.NumeroCompte,
             N.debit, N.credit,
             N1.debit, N1.credit,
-            NB.NbEcritures
-        FROM ((
-            SELECT NumeroCompte, COUNT(*) AS NbEcritures
+            N.NbEcritures
+        FROM (
+            SELECT NumeroCompte, 
+            ROUND(SUM(MontantTenuDebit),2) AS debit, 
+            ROUND(SUM(MontantTenuCredit),2) AS credit, 
+            COUNT(*) AS NbEcritures
             FROM Ecritures
             WHERE TypeLigne='E'
-            GROUP BY NumeroCompte) NB
-            LEFT JOIN(
-            SELECT NumeroCompte, SUM(MontantTenuDebit) AS debit, SUM(MontantTenuCredit) as credit
-            FROM Ecritures
-            WHERE TypeLigne='E'
-            GROUP BY NumeroCompte) N
-            ON NB.NumeroCompte=N.Numerocompte)
+            GROUP BY NumeroCompte) N            
             LEFT JOIN (
-            SELECT NumeroCompte, SUM(MontantTenuDebit) AS debit, SUM(MontantTenuCredit) as credit
+            SELECT NumeroCompte, 
+            ROUND(SUM(MontantTenuDebit),2) AS debit, 
+            ROUND(SUM(MontantTenuCredit),2) AS credit
             FROM Ecritures
             WHERE PeriodeEcriture>=#{self.exefin}# 
             AND TypeLigne='E'
             GROUP BY NumeroCompte) N1
-            ON NB.NumeroCompte=N1.NumeroCompte
-            """
-        data = self.cursor.execute(sql).fetchall()
-        count = 1
+            ON N.NumeroCompte=N1.NumeroCompte
+        UNION
+        SELECT N.Compte,
+            N.debit, N.credit,
+            N1.debit, N1.credit,
+            N.NbEcritures
+        FROM ((
+            SELECT
+            '{self.collfrn}' AS Compte, COUNT(*) AS NbEcritures,
+            ROUND(SUM(MontantTenuDebit),2) AS debit, 
+            ROUND(SUM(MontantTenuCredit),2) as credit
+            FROM Ecritures
+            WHERE TypeLigne='E'
+            AND NumeroCompte LIKE '0%') N
+            LEFT JOIN (
+            SELECT
+            '{self.collfrn}' AS Compte, COUNT(*) AS NbEcritures,
+            ROUND(SUM(MontantTenuDebit),2) AS debit, 
+            ROUND(SUM(MontantTenuCredit),2) AS credit
+            FROM Ecritures
+            WHERE TypeLigne='E'
+            AND NumeroCompte LIKE '0%'
+            AND PeriodeEcriture>=#{self.exefin}#) N1
+            ON N.Compte=N1.Compte)
+        UNION
+        SELECT N.Compte,
+            N.debit, N.credit,
+            N1.debit, N1.credit,
+            N.NbEcritures
+        FROM ((
+            SELECT
+            '{self.collcli}' AS Compte, COUNT(*) AS NbEcritures,
+            ROUND(SUM(MontantTenuDebit),2) AS debit, 
+            ROUND(SUM(MontantTenuCredit),2) as credit
+            FROM Ecritures
+            WHERE TypeLigne='E'
+            AND NumeroCompte LIKE '9%') N
+            LEFT JOIN (
+            SELECT
+            '{self.collcli}' AS Compte, COUNT(*) AS NbEcritures,
+            ROUND(SUM(MontantTenuDebit),2) AS debit, 
+            ROUND(SUM(MontantTenuCredit),2) AS credit
+            FROM Ecritures
+            WHERE TypeLigne='E'
+            AND NumeroCompte LIKE '9%'
+            AND PeriodeEcriture>=#{self.exefin}#) N1
+            ON N.Compte=N1.Compte)            
+    """  
+        data = self.exec_select(sql)
+        for index, row in enumerate(data):
+            data[index] = [0.0 if x==None else x for x in row] # None -> 0
+        return data
+
+    def maj_solde_comptes(self):
+
+        data = self.calc_solde_comptes()
+
         logging.info("Mise à jour de la table Comptes")
 
         for (Numero, Debit, Credit,
              DebitHorsEx, CreditHorsEx, NbEcritures) in data:
-
-            if Debit==None: Debit = 0.0
-            if Credit==None: Credit = 0.0
-            if DebitHorsEx==None: DebitHorsEx = 0.0
-            if CreditHorsEx==None: CreditHorsEx = 0.0
-            if NbEcritures==None: NbEcritures = 0
 
             sql = f"""
             UPDATE Comptes 
@@ -696,21 +746,7 @@ class QueryCompta(object):
             NbEcritures={NbEcritures}
             WHERE Numero='{Numero}'
             """
-            try:
-                self.cursor.execute(sql)
-                progressbar(count, len(data))
-                count += 1
-            except pyodbc.Error:
-                logging.error("erreur update Comptes {}".format(sys.exc_info()[1]))
-                logging.debug(sql)
-                return False  
-
-        logging.info("Mise à jour table Comptes OK")
-        return True    
-    
-    # def copy_to_images(self, filepath):
-    #     pass
-
+            self.exec_insert(sql)
 
 
 # ///////////////////////////////////////////////////////////////
@@ -930,13 +966,14 @@ if __name__ == '__main__':
 
     # cpta = "//srvquadra/qappli/quadra/database/cpta/da209912/Form05/qcompta.mdb"
     # cpta = "//srvquadra/qappli/quadra/database/cpta/ds2099/000175/qcompta.mdb"
-    cpta = "C:/quadra/database/cpta/DC/T00752/qcompta.mdb"
-    da = "C:/quadra/database/cpta/DC/T00752/QDR1812.mdb"
+    # cpta = "C:/quadra/database/cpta/DC/T00752/qcompta.mdb"
+    # da = "C:/quadra/database/cpta/DC/T00752/QDR1812.mdb"
+    cpta = "assets/predi_nocent.mdb"
 
     QC = QueryCompta()
     QC.connect(cpta)
     print(QC.preffrn)
-
+    pp.pprint(QC.comptes)
 
     # QDA = QueryDossierAnnuel()
     # QDA.connect(da)
