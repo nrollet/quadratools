@@ -6,7 +6,7 @@ import string
 import os
 import shutil
 from datetime import datetime
-from quadratools.sqlstr import req_calc_central
+# from quadratools.sqlstr import req_calc_central
 
 def progressbar(count, total):
     """
@@ -67,6 +67,9 @@ class QueryCompta(object):
 
     def connect(self, chem_base):
         self.chem_base = chem_base.lower()
+        if not os.path.isfile(self.chem_base):
+            logging.error("Fichier mdb introuvable")
+            return False
 
         constr = 'Driver={Microsoft Access Driver (*.mdb, *.accdb)};Dbq=' + \
             self.chem_base
@@ -250,12 +253,18 @@ class QueryCompta(object):
         if compte.startswith(self.preffrn):
             type_cpt = "F"
             Collectif = self.collfrn
+            DetailCloture = 1
+            ALettrerAuto = 1
         elif compte.startswith(self.prefcli):
             type_cpt = "C"
             Collectif = self.collcli
+            DetailCloture = 1
+            ALettrerAuto = 1
         elif compte[0] in ["1", "2", "3", "4", "5", "6", "7"]:
             type_cpt = "G"
-            Collectif = "NULL"
+            Collectif = ""
+            DetailCloture = 0
+            ALettrerAuto = 0
         else:
             logging.error("Compte {} hors PC".format(compte))
             return False
@@ -274,8 +283,6 @@ class QueryCompta(object):
         Credit_2 = 0.0
         Collectif_2 = Collectif
         NbEcritures = False
-        DetailCloture = 1
-        ALettrerAuto = 1
         CentraliseGdLivre = False
         SuiviQuantite = False
         CumulPiedJournal = False
@@ -403,17 +410,17 @@ class QueryCompta(object):
         return last_lfolio             
 
     def insert_ecrit(self, compte, journal, folio, date,
-                     libelle, debit, credit, piece, image, centre, image_root):
+                     libelle, debit, credit, piece, image, centre, echeance):
         """
         Insere une nouvelle ligne dans la table ecritures de Quadra.
         Si le compte possède une affectation analytique, une deuxème
         ligne est insérée avec les données analytiques
         """
         # Contrôle piece-jointe
-        source_image_path = os.path.join(image_root, image)
-        if image and not os.path.isfile(source_image_path):
-            logging.error("fichier absent {}".format(os.path.join(image_root, image)))
-            image = ""
+        # source_image_path = os.path.join(image_root, image)
+        # if image and not os.path.isfile(source_image_path):
+        #     logging.error("fichier absent {}".format(os.path.join(image_root, image)))
+        #     image = ""
 
         # Folio = "000"
         MontantSaisiDebit = 0
@@ -444,6 +451,7 @@ class QueryCompta(object):
         NumMandat = 0
         DateSysSaisie = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         CompteContrepartie = ""   
+        EcheanceSimple = echeance
 
         # Elements analytique invar.
         A_NumLigne = 1
@@ -580,28 +588,128 @@ class QueryCompta(object):
                 logging.debug(sql)
                 return False
 
-            # TRAITEMENT IMAGE
-            dest_image_dir = self.chem_base.replace("qcompta.mdb", "images")
-            if os.path.isfile(source_image_path):
-                if os.path.isdir(dest_image_dir): 
-                    try:  
-                        shutil.copy(source_image_path, dest_image_dir+"/"+image)  
-                    except IOError as e:
-                        logging.error("Echec copie {}, {}".format(source_image_path, e))
+            # # TRAITEMENT IMAGE
+            # dest_image_dir = self.chem_base.replace("qcompta.mdb", "images")
+            # if os.path.isfile(source_image_path):
+            #     if os.path.isdir(dest_image_dir): 
+            #         try:  
+            #             shutil.copy(source_image_path, dest_image_dir+"/"+image)  
+            #         except IOError as e:
+            #             logging.error("Echec copie {}, {}".format(source_image_path, e))
 
             return uid
     
     def calc_centralisateurs(self):
-        sql = req_calc_central(self.prefcli, self.preffrn)
+        sql = """
+        SELECT
+            NBL.CodeJournal, NBL.PeriodeEcriture, NBL.Folio,
+            NBL.NbLigneFolio, PRL.ProchaineLigne,
+            CLI.DebitClient, CLI.CreditClient,
+            FRN.DebitFournisseur, FRN.CreditFournisseur,
+            BIL.DebitClasse15, BIL.CreditClasse15,
+            EXP.DebitClasse67, EXP.CreditClasse67
+        FROM
+            (((((SELECT CodeJournal, PeriodeEcriture, Folio, COUNT(*) AS NbLigneFolio
+            FROM Ecritures
+            WHERE TypeLigne='E'
+            GROUP BY CodeJournal, PeriodeEcriture, Folio) NBL
+            LEFT JOIN
+            (SELECT CodeJournal, PeriodeEcriture, Folio, MAX(LigneFolio) AS ProchaineLigne
+            FROM Ecritures
+            WHERE TypeLigne='E'
+            GROUP BY CodeJournal, PeriodeEcriture, Folio) PRL
+            ON NBL.CodeJournal=PRL.CodeJournal AND
+                NBL.PeriodeEcriture=PRL.PeriodeEcriture AND
+                NBL.Folio=PRL.Folio)
+            LEFT JOIN
+            (SELECT CodeJournal, PeriodeEcriture, Folio, ROUND(SUM(MontantTenuDebit),2) AS DebitClient, ROUND(SUM(MontantTenuCredit),2) AS CreditClient
+            FROM Ecritures
+            WHERE TypeLigne='E'
+                AND NumeroCompte LIKE '{0}%'
+            GROUP BY CodeJournal, PeriodeEcriture, Folio) CLI
+            ON NBL.CodeJournal=CLI.CodeJournal AND
+                NBL.PeriodeEcriture=CLI.PeriodeEcriture AND
+                NBL.Folio=CLI.Folio)
+            LEFT JOIN
+            (SELECT CodeJournal, PeriodeEcriture, Folio, ROUND(SUM(MontantTenuDebit),2) AS DebitFournisseur, ROUND(SUM(MontantTenuCredit),2) AS CreditFournisseur
+            FROM Ecritures
+            WHERE TypeLigne='E'
+                AND NumeroCompte LIKE '{1}%'
+            GROUP BY CodeJournal, PeriodeEcriture, Folio) FRN
+            ON NBL.CodeJournal=FRN.CodeJournal AND
+                NBL.PeriodeEcriture=FRN.PeriodeEcriture AND
+                NBL.Folio=FRN.Folio)
+            LEFT JOIN
+            (SELECT CodeJournal, PeriodeEcriture, Folio, ROUND(SUM(MontantTenuDebit),2) AS DebitClasse15, ROUND(SUM(MontantTenuCredit),2) AS CreditClasse15
+            FROM Ecritures
+            WHERE TypeLigne='E'
+                AND NumeroCompte LIKE '[1-5]%'
+            GROUP BY CodeJournal, PeriodeEcriture, Folio) BIL
+            ON NBL.CodeJournal=BIL.CodeJournal AND
+                NBL.PeriodeEcriture=BIL.PeriodeEcriture AND
+                NBL.Folio=BIL.Folio)
+            LEFT JOIN
+            (SELECT CodeJournal, PeriodeEcriture, Folio, ROUND(SUM(MontantTenuDebit),2) AS DebitClasse67, ROUND(SUM(MontantTenuCredit),2) AS CreditClasse67
+            FROM Ecritures
+            WHERE TypeLigne='E'
+                AND NumeroCompte LIKE '[6-7]%'
+            GROUP BY CodeJournal, PeriodeEcriture, Folio) EXP
+            ON NBL.CodeJournal=EXP.CodeJournal AND
+                NBL.PeriodeEcriture=EXP.PeriodeEcriture AND
+                NBL.Folio=EXP.Folio
+        WHERE NBL.CodeJournal<>'AN'
+        UNION
+        SELECT
+            NBL.CodeJournal, #1899-12-30# AS PeriodeEcriture, 0 AS Folio, NBL.NbLigneFolio,
+            PRL.ProchaineLigne,
+            CLI.DebitClient, CLI.CreditClient,
+            FRN.DebitFournisseur, FRN.CreditFournisseur,
+            BIL.DebitClasse15, BIL.CreditClasse15,
+            0 AS DebitClasse67, 0 AS CreditClasse67
+        FROM
+            (((((SELECT CodeJournal, COUNT(*) AS NbLigneFolio
+            FROM Ecritures
+            WHERE TypeLigne='E'
+                AND CodeJournal='AN'
+            GROUP BY CodeJournal) NBL
+            LEFT JOIN
+            (SELECT CodeJournal, MAX(LigneFolio) AS ProchaineLigne
+            FROM Ecritures
+            WHERE TypeLigne='E'
+                AND CodeJournal='AN'
+            GROUP BY CodeJournal) PRL
+            ON NBL.CodeJournal=PRL.CodeJournal)
+            LEFT JOIN
+            (SELECT CodeJournal, ROUND(SUM(MontantTenuDebit),2) AS DebitClient, ROUND(SUM(MontantTenuCredit),2) AS CreditClient
+            FROM Ecritures
+            WHERE TypeLigne='E'
+                AND CodeJournal='AN'
+                AND NumeroCompte LIKE '{0}%'
+            GROUP BY CodeJournal) CLI
+            ON NBL.CodeJournal=CLI.CodeJournal)
+            LEFT JOIN
+            (SELECT CodeJournal, ROUND(SUM(MontantTenuDebit),2) AS DebitFournisseur, ROUND(SUM(MontantTenuCredit),2) AS CreditFournisseur
+            FROM Ecritures
+            WHERE TypeLigne='E'
+                AND CodeJournal='AN'
+                AND NumeroCompte LIKE '{1}%'
+            GROUP BY CodeJournal) FRN
+            ON NBL.CodeJournal=FRN.CodeJournal)
+            LEFT JOIN
+            (SELECT CodeJournal, ROUND(SUM(MontantTenuDebit),2) AS DebitClasse15, ROUND(SUM(MontantTenuCredit),2) AS CreditClasse15
+            FROM Ecritures
+            WHERE TypeLigne='E'
+                AND CodeJournal='AN'
+                AND NumeroCompte LIKE '[1-5]%'
+            GROUP BY CodeJournal) BIL
+            ON NBL.CodeJournal=BIL.CodeJournal)
+        """.format(self.prefcli, self.preffrn)
         data = self.exec_select(sql)
 
         # modification sur la requête :
         for index, row in enumerate(data):
             # La valeurs None -> 0
             row = [0.0 if x==None else x for x in row]
-            # Mystérieusement la date repasse en string... Il faut la remettre en datetime
-            # if row[1]:
-            #     row[1] = datetime.strptime(row[1], "%d/%m/%Y")
             # Calcul du numéro la prochaine ligne dans le folio (à la dizaine supérieure)
             if row[4]:
                 row[4] = (int(row[4]/10)+1)*10

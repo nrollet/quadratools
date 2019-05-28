@@ -44,7 +44,7 @@ def test_maj_centralisateurs():
     QRef.connect("assets/predi_ref.mdb")
     ref = QRef.exec_select("SELECT * FROM Centralisateur")
 
-    assert calc==ref
+    assert sorted(calc)==sorted(ref)
     Qtest.close()
     QRef.close()
 
@@ -88,7 +88,7 @@ def test_maj_solde_comptes():
         NbEcritures
         FROM Comptes"""
     )
-    assert data_test==data_ref
+    assert sorted(data_test)==sorted(data_ref)
     Qtest.close()
     QRef.close()
 
@@ -101,26 +101,26 @@ def test_insert_compte():
     Qtest = QueryCompta()
     Qtest.connect("assets/predi_test.mdb")
     # Sélection d'un compte fourn/general au hasard
-
     fourn = choice(
         list((x for x in Qtest.plan.keys() if x.startswith("0")))
     )
     gener = choice(
         list((x for x in Qtest.plan.keys() if x.startswith("2")))
     )
-    print("\n", f"fourn:{fourn}", f"gener:{gener}")
+    # print("\n", f"fourn:{fourn}", f"gener:{gener}")
     # Suppression
     Qtest.exec_insert(f"""
         DELETE FROM Comptes WHERE Numero='{fourn}' OR Numero='{gener}'
     """)    
     Qtest.insert_compte(fourn)
     Qtest.insert_compte(gener)
+    Qtest.maj_solde_comptes()
     data_test = Qtest.exec_select(
         f"""SELECT 
             Numero, Type, TypeCollectif,
             Debit, Credit, DebitHorsEx, CreditHorsEx,
-            Collectif,  NbEcritures, ProchaineLettre, MargeTheorique,
-            CompteInactif, QuantiteNbEntier, DetailCloture
+            Collectif,  NbEcritures, MargeTheorique,
+            CompteInactif, QuantiteNbEntier, DetailCloture, ALettrerAuto
             FROM Comptes WHERE Numero='{fourn}' OR Numero='{gener}'""")
 
 
@@ -130,10 +130,14 @@ def test_insert_compte():
         f"""SELECT 
             Numero, Type, TypeCollectif,
             Debit, Credit, DebitHorsEx, CreditHorsEx,
-            Collectif,  NbEcritures, ProchaineLettre, MargeTheorique,
-            CompteInactif, QuantiteNbEntier, DetailCloture
+            Collectif,  NbEcritures, MargeTheorique,
+            CompteInactif, QuantiteNbEntier, DetailCloture, ALettrerAuto
             FROM Comptes WHERE Numero='{fourn}' OR Numero='{gener}'""")
-    print(data_test)
+    print()
+    for row in data_test:
+        print("TST: ",row)
+    for row in data_ref:
+        print("REF: ",row)
     assert data_test==data_ref
     Qtest.close()
     QRef.close()  

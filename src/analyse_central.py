@@ -9,7 +9,7 @@ pp = pprint.PrettyPrinter(indent=4)
 logging.basicConfig(level=logging.DEBUG,
                     format='%(module)s-%(funcName)s\t\t%(levelname)s - %(message)s')
 
-dbpath = "assets/predi.mdb"
+dbpath = "assets/predi_test.mdb"
 # dbpath = "assets/ajusted.mdb"
 # dbpath = "//srvquadra/qappli/quadra/database/cpta/dc/000874/qcompta.mdb"
 

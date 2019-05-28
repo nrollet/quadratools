@@ -25,7 +25,7 @@ Q.exec_insert(
 )
 
 Q.insert_compte("0LEVILLA")
-# Q.maj_solde_comptes()
+Q.maj_solde_comptes()
 data_test = Q.exec_select(
         f"""SELECT * FROM Comptes WHERE Numero='0LEVILLA'""")
 pp.pprint(data_test)
