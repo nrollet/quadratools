@@ -410,55 +410,26 @@ class QueryCompta(object):
         return last_lfolio             
 
     def insert_ecrit(self, compte, journal, folio, date,
-                     libelle, debit, credit, piece, image, centre, echeance):
+                     libelle, debit, credit, piece, centre, echeance):
         """
         Insere une nouvelle ligne dans la table ecritures de Quadra.
         Si le compte possède une affectation analytique, une deuxème
         ligne est insérée avec les données analytiques
         """
-        # Contrôle piece-jointe
-        # source_image_path = os.path.join(image_root, image)
-        # if image and not os.path.isfile(source_image_path):
-        #     logging.error("fichier absent {}".format(os.path.join(image_root, image)))
-        #     image = ""
-
-        # Folio = "000"
-        MontantSaisiDebit = 0
-        MontantSaisiCredit = 0
-        Quantite = 0
-        NumLettrage = 0
-        RapproBancaireOk = False
-        NoLotEcritures = 0
-        PieceInterne = 0
-        CodeOperateur = "QTOO"
-        Etat = 0
+        CodeOperateur = "BOT"
         NumLigne = 0
         TypeLigne = "E"
-        Actif = False
-        PrctRepartition = 0
         ClientOuFrn = 0
-        MontantAna = 0
-        MilliemesAna = 0
-        CodeTva = -1
-        BonsAPayer = False
-        MtDevForce = False
-        EnLitige = False
-        Quantite2 = 0
-        NumEcrEco = 0
-        NoLotFactor = 0
-        Validee = False
-        NoLotIs = 0
-        NumMandat = 0
         DateSysSaisie = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        CompteContrepartie = ""   
+        CentreSimple = centre
         EcheanceSimple = echeance
 
+        # Pour ligne type 'T'
+        DateEcheance = echeance
+
         # Elements analytique invar.
-        A_NumLigne = 1
-        A_TypeLigne = "A"
-        A_Nature = '*'
-        A_PrctRepartition = 100
-        A_TypeSaisie = 'P'  
+
+
 
         periode = datetime(date.year,
                            date.month,1)
@@ -467,7 +438,8 @@ class QueryCompta(object):
         piece = piece[0:10]
 
         uid = self.get_last_uniq() + 1
-        lfolio = self.get_last_lignefolio(journal, periode) + 10
+        lfolio = self.get_last_lignefolio(journal, periode)
+        lfolio = ((lfolio/10)+1)*10
 
         # Vérif date sur période non cloturée
         if periode <= self.dtclot:
@@ -485,118 +457,80 @@ class QueryCompta(object):
             if self.insert_compte(compte):
                 self.plan.update({compte : {"initule": "", "nbrecr": 0, "lettrage": ""}})
 
-        sql = f"""
+        sql_ecr = f"""
             INSERT INTO Ecritures
             (NumUniq, NumeroCompte, 
             CodeJournal, Folio, 
             LigneFolio, PeriodeEcriture, 
             JourEcriture, Libelle, 
             MontantTenuDebit, MontantTenuCredit, 
-            MontantSaisiDebit, MontantSaisiCredit, 
-            CompteContrepartie, Quantite, 
-            NumeroPiece, NumLettrage, 
-            RapproBancaireOk, NoLotEcritures, 
-            PieceInterne, CodeOperateur, 
-            DateSysSaisie, Etat, 
-            NumLigne, TypeLigne, 
-            Actif, PrctRepartition, 
-            ClientOuFrn, RefImage, 
-            MontantAna, MilliemesAna, 
-            CentreSimple, CodeTva, 
-            BonsAPayer, MtDevForce, 
-            EnLitige, Quantite2, 
-            NumEcrEco, NoLotFactor, 
-            Validee, NoLotIs, 
-            NumMandat) 
+            NumeroPiece, CodeOperateur, 
+            DateSysSaisie, NumLigne, 
+            TypeLigne, ClientOuFrn, 
+            EcheanceSimple, CentreSimple) 
             VALUES 
             ({uid}, '{compte}', 
             '{journal}', {folio}, 
             {lfolio}, #{periode}#, 
             {jour}, '{libelle}', 
             {debit}, {credit}, 
-            {MontantSaisiDebit}, {MontantSaisiCredit}, 
-            '{CompteContrepartie}', {Quantite}, 
-            '{piece}', {NumLettrage}, 
-            {RapproBancaireOk}, {NoLotEcritures}, 
-            {PieceInterne}, '{CodeOperateur}', 
-            #{DateSysSaisie}#, {Etat}, 
-            {NumLigne}, '{TypeLigne}', 
-            {Actif}, {PrctRepartition}, 
-            {ClientOuFrn}, '{image}', 
-            {MontantAna}, {MilliemesAna}, 
-            '{centre}', {CodeTva}, 
-            {BonsAPayer}, {MtDevForce}, 
-            {EnLitige}, {Quantite2}, 
-            {NumEcrEco}, {NoLotFactor}, 
-            {Validee}, {NoLotIs}, 
-            {NumMandat})
-            """
-        try:
-            self.cursor.execute(sql)
-        except pyodbc.Error:
-            logging.error("erreur insert Ecritures {}".format(sys.exc_info()[1]))
-            logging.debug(sql)
-            return False
+            '{piece}', '{CodeOperateur}', 
+            #{DateSysSaisie}#, {NumLigne}, 
+            '{TypeLigne}', {ClientOuFrn},
+            {EcheanceSimple}, '{CentreSimple}')
+            """            
 
         if centre:
             montant = abs(debit - credit)
-            uid += 1
+            TypeLigne = "A"
+            NumLigne = 1    
+            Nature = '*'
+            PrctRepartition = 100
+            TypeSaisie = 'P'                      
 
-            sql = f"""
+            sql_ana = f"""
                 INSERT INTO Ecritures
                 (NumUniq, NumeroCompte,
                 CodeJournal, Folio,
                 LigneFolio,PeriodeEcriture,
                 JourEcriture, MontantTenuDebit,
-                MontantTenuCredit, MontantSaisiDebit,
-                MontantSaisiCredit, Quantite,
-                NumLettrage, RapproBancaireOk,
-                NoLotEcritures, PieceInterne,
-                NumLigne, TypeLigne,
-                Actif, Centre,
-                Nature, PrctRepartition,
-                TypeSaisie, MontantAna,
-                MilliemesAna, CodeTva,
-                BonsAPayer, MtDevForce,
-                EnLitige, Quantite2,
-                NumEcrEco, NoLotFactor,
-                Validee, NoLotIs,
-                NumMandat)
+                MontantTenuCredit, NumLigne, 
+                TypeLigne, Centre, 
+                Nature, PrctRepartition, 
+                TypeSaisie, MontantAna)
                 VALUES
-                ({uid}, '{compte}',
+                ({uid+1}, '{compte}',
                 '{journal}', {folio},
                 {lfolio}, #{periode}#,
                 {jour}, {debit}, 
-                {credit}, {MontantSaisiDebit},
-                {MontantSaisiCredit}, {Quantite},
-                {NumLettrage}, {RapproBancaireOk},
-                {NoLotEcritures}, {PieceInterne},
-                {A_NumLigne}, '{A_TypeLigne}',
-                {Actif}, '{centre}',
-                '{A_Nature}', {A_PrctRepartition},
-                '{A_TypeSaisie}', {montant},
-                {MilliemesAna}, {CodeTva},
-                {BonsAPayer}, {MtDevForce},
-                {EnLitige}, {Quantite2},
-                {NumEcrEco}, {NoLotFactor},
-                {Validee}, {NoLotIs}, {NumMandat})
+                {credit}, {NumLigne}, 
+                '{TypeLigne}', '{centre}',
+                '{Nature}', {PrctRepartition},
+                '{TypeSaisie}', {montant})
                 """           
-            try:
-                self.cursor.execute(sql)
-            except pyodbc.Error:
-                logging.error("erreur insert Ecritures {} (A)".format(sys.exc_info()[1]))
-                logging.debug(sql)
-                return False
-
-            # # TRAITEMENT IMAGE
-            # dest_image_dir = self.chem_base.replace("qcompta.mdb", "images")
-            # if os.path.isfile(source_image_path):
-            #     if os.path.isdir(dest_image_dir): 
-            #         try:  
-            #             shutil.copy(source_image_path, dest_image_dir+"/"+image)  
-            #         except IOError as e:
-            #             logging.error("Echec copie {}, {}".format(source_image_path, e))
-
+        if echeance:
+            montant = abs(debit - credit)
+            TypeLigne = "T"
+            NumLigne = 1              
+            sql_ech = f"""
+                INSERT INTO Ecritures
+                (NumUniq, NumeroCompte,
+                CodeJournal, Folio,
+                LigneFolio, PeriodeEcriture,
+                JourEcriture, MontantTenuDebit,
+                MontantTenuCredit, DateEcheance,
+                NumLigne, TypeLigne,  
+                MontantAna)
+                VALUES
+                ({uid+1}, '{compte}',
+                '{journal}', {folio},
+                {lfolio}, #{periode}#,
+                {jour}, {debit}, 
+                {credit}, #{echeance}#, 
+                {NumLigne}, '{TypeLigne}', 
+                {montant})
+                """  
+            if self.exec_insert()
             return uid
     
     def calc_centralisateurs(self):

@@ -187,3 +187,22 @@ FROM ((
         AND PeriodeEcriture>=#2018-12-31#    )
 N1
     ON N.Compte=N1.Compte)
+
+/*******************************************/
+
+INSERT INTO Ecritures(
+NumUniq, NumeroCompte,
+CodeJournal,Folio,LigneFolio,
+PeriodeEcriture, JourEcriture,
+Libelle,
+MontantTenuDebit,MontantTenuCredit,
+NumeroPiece, CodeOperateur,
+DateSysSaisie, NumLigne,
+TypeLigne, ClientOuFrn,
+EcheanceSimple, CentreSimple)
+VALUES
+(
+    40000, '0HK', 'AC', 0, 70, #2019-05-01#,
+    25, 'SUPERTEST', 999.99, 0.0, 'XXXXX', 'ROBT',
+    #2019-05-28#, 0, 'E', #2019-06-15#, '019'
+)
