@@ -6,7 +6,6 @@ import string
 import os
 import shutil
 from datetime import datetime
-# from quadratools.sqlstr import req_calc_central
 
 def progressbar(count, total):
     """
@@ -859,7 +858,14 @@ class QueryCompta(object):
             """
             self.exec_insert(sql)
 
-
+    def ajout_image(self, numuniq, filepath):
+        """
+        TODO : fonction pour gérer l'ajout d'une pièce
+        mettre à jour le champ refImage
+        copier le fichier vers le répertoire image 
+        (avec nom modifié pour gérer les doublons)
+        """
+        pass
 # ///////////////////////////////////////////////////////////////
 # ///////////////////////////////////////////////////////////////
 # ///////////////////////////////////////////////////////////////
