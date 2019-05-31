@@ -9,7 +9,7 @@ pp = pprint.PrettyPrinter(indent=4)
 logging.basicConfig(level=logging.DEBUG,
                     format='%(module)s-%(funcName)s\t\t%(levelname)s - %(message)s')
 
-dbpath = "assets/predi_test.mdb"
+dbpath = "assets/predi_ref.mdb"
 # dbpath = "assets/ajusted.mdb"
 # dbpath = "//srvquadra/qappli/quadra/database/cpta/dc/000874/qcompta.mdb"
 
@@ -23,7 +23,8 @@ for i, row in enumerate(central):
     ## datetime changée en string
     row = [x.strftime("%d/%m/%Y") if isinstance(x, datetime.datetime) else x for x in row]
     ## On convertit tout en int pour éviter les pbm d'arrondis
-    central[i] = [int(x) if isinstance(x, float) else x for x in row]
+#     central[i] = [int(x) if isinstance(x, float) else x for x in row]
+    central[i] = row
 
 for i, row in enumerate(central_ref):
     ## datetime changée en string sauf si == ''
@@ -31,8 +32,8 @@ for i, row in enumerate(central_ref):
     ## les à-nouveaux vont retourner une date 1899, on la change
     row = ["" if x=="30/12/1899" else x for x in row]
     ## On convertit tout en int pour éviter les pbm d'arrondis
-    central_ref[i] = [int(x) if isinstance(x, float) else x for x in row]
-
+#     central_ref[i] = [int(x) if isinstance(x, float) else x for x in row]
+    central_ref[i] = list(row)
 # for item in central:
 #     print(item)
 print("-=-=-=-=- Lignes divergentes issues de la table ecritures -=-=-=-=-")

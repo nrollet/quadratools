@@ -193,6 +193,7 @@ class QueryCompta(object):
         status = False
         try:
             self.cursor.execute(sql_string)
+            # logging.debug("Insert worked")
             status = True
         except pyodbc.Error:
             logging.error("erreur requete base {} \n {}".format(
@@ -253,18 +254,12 @@ class QueryCompta(object):
         if compte.startswith(self.preffrn):
             type_cpt = "F"
             Collectif = self.collfrn
-            DetailCloture = 1
-            ALettrerAuto = 1
         elif compte.startswith(self.prefcli):
             type_cpt = "C"
             Collectif = self.collcli
-            DetailCloture = 1
-            ALettrerAuto = 1
         elif compte[0] in ["1", "2", "3", "4", "5", "6", "7"]:
             type_cpt = "G"
             Collectif = ""
-            DetailCloture = 0
-            ALettrerAuto = 0
         else:
             logging.error("Compte {} hors PC".format(compte))
             return False
@@ -321,6 +316,8 @@ class QueryCompta(object):
         TypeIntraCom = 0
         Prestataire = 0
         CptParticulier = False
+        DetailCloture = 1
+        ALettrerAuto = 1
 
         logging.info("Ajout d'un nouveau compte : {} ({})".format(compte, type_cpt))
 
@@ -410,36 +407,47 @@ class QueryCompta(object):
         return last_lfolio             
 
     def insert_ecrit(self, compte, journal, folio, date,
-                     libelle, debit, credit, piece, centre, echeance):
+                     libelle, debit, credit, piece="", centre="", echeance=""):
         """
         Insere une nouvelle ligne dans la table ecritures de Quadra.
         Si le compte possède une affectation analytique, une deuxème
         ligne est insérée avec les données analytiques
         """
+        sql_ecr = ""
+        sql_ana = ""
+        sql_ech = ""
+
         CodeOperateur = "BOT"
         NumLigne = 0
         TypeLigne = "E"
         ClientOuFrn = 0
+        if not isinstance(echeance, datetime):
+            echeance = datetime(1899, 12, 30)
+        if piece:
+            piece = str(piece)[0:10]
+        else:
+            piece = ""
         DateSysSaisie = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        CentreSimple = centre
-        EcheanceSimple = echeance
-
-        # Pour ligne type 'T'
-        DateEcheance = echeance
-
-        # Elements analytique invar.
-
-
 
         periode = datetime(date.year,
                            date.month,1)
         jour = date.day
         libelle = libelle[:30]
-        piece = piece[0:10]
 
         uid = self.get_last_uniq() + 1
         lfolio = self.get_last_lignefolio(journal, periode)
-        lfolio = ((lfolio/10)+1)*10
+        lfolio = int(((lfolio/10)+1)*10)
+        Etat = 0
+        ModePaiement = "NULL"
+        CodeBanque = "NULL"
+        DateEcheance = datetime(1899, 12, 30)
+        NumEditLettrePaiement = "NULL"
+        ReferenceTire = "NULL"
+        Rib = "NULL"
+        DomBanque = "NULL"
+        Nature = ""
+        PrctRepartition = 0.0
+        TypeSaisie = ""
 
         # Vérif date sur période non cloturée
         if periode <= self.dtclot:
@@ -464,9 +472,13 @@ class QueryCompta(object):
             LigneFolio, PeriodeEcriture, 
             JourEcriture, Libelle, 
             MontantTenuDebit, MontantTenuCredit, 
-            NumeroPiece, CodeOperateur, 
-            DateSysSaisie, NumLigne, 
-            TypeLigne, ClientOuFrn, 
+            NumeroPiece, DateEcheance, CodeOperateur, 
+            DateSysSaisie, Etat, 
+            ModePaiement, NumLigne, 
+            TypeLigne, NumEditLettrePaiement,
+            ReferenceTire, Rib, DomBanque,
+            Nature, PrctRepartition, TypeSaisie,
+            ClientOuFrn, 
             EcheanceSimple, CentreSimple) 
             VALUES 
             ({uid}, '{compte}', 
@@ -474,12 +486,16 @@ class QueryCompta(object):
             {lfolio}, #{periode}#, 
             {jour}, '{libelle}', 
             {debit}, {credit}, 
-            '{piece}', '{CodeOperateur}', 
-            #{DateSysSaisie}#, {NumLigne}, 
-            '{TypeLigne}', {ClientOuFrn},
-            {EcheanceSimple}, '{CentreSimple}')
+            '{piece}', #{DateEcheance}#, '{CodeOperateur}', 
+            #{DateSysSaisie}#, {Etat}, 
+            {ModePaiement}, {NumLigne}, 
+            '{TypeLigne}', {NumEditLettrePaiement},
+            {ReferenceTire}, {Rib}, {DomBanque},
+            '{Nature}', {PrctRepartition}, '{TypeSaisie}',
+            {ClientOuFrn},
+            #{echeance}#, '{centre}')
             """            
-
+        # logging.debug(sql_ecr)
         if centre:
             montant = abs(debit - credit)
             TypeLigne = "A"
@@ -510,28 +526,62 @@ class QueryCompta(object):
                 """           
         if echeance:
             montant = abs(debit - credit)
-            TypeLigne = "T"
+            Libelle = ""
+            Piece = "NULL"
+            CodeOperateur = "NULL"
+            DateSysSaisie = datetime(1899, 12, 30)
             NumLigne = 1              
+            TypeLigne = "T"
+            ModePaiement = "''"
+            CodeBanque = "''"
+            PrctRepartition = 0.0
+            TypeSaisie = "NULL"
+            ClientOuFrn = "NULL"
+            EcheanceSimple = "NULL"
+            CentreSimple = ""
             sql_ech = f"""
                 INSERT INTO Ecritures
-                (NumUniq, NumeroCompte,
-                CodeJournal, Folio,
-                LigneFolio, PeriodeEcriture,
-                JourEcriture, MontantTenuDebit,
-                MontantTenuCredit, DateEcheance,
-                NumLigne, TypeLigne,  
-                MontantAna)
-                VALUES
-                ({uid+1}, '{compte}',
-                '{journal}', {folio},
-                {lfolio}, #{periode}#,
-                {jour}, {debit}, 
-                {credit}, #{echeance}#, 
-                {NumLigne}, '{TypeLigne}', 
-                {montant})
-                """  
-            if self.exec_insert()
-            return uid
+                (NumUniq, NumeroCompte, 
+                CodeJournal, Folio, 
+                LigneFolio, PeriodeEcriture, 
+                JourEcriture, Libelle, 
+                MontantTenuDebit, MontantTenuCredit, 
+                NumeroPiece, DateEcheance, CodeOperateur, 
+                DateSysSaisie, Etat, 
+                ModePaiement, CodeBanque, NumLigne, 
+                TypeLigne, NumEditLettrePaiement,
+                ReferenceTire, Rib, DomBanque,
+                Nature, PrctRepartition, TypeSaisie,
+                ClientOuFrn, MontantAna,
+                EcheanceSimple, CentreSimple) 
+                VALUES 
+                ({uid+1}, '{compte}', 
+                '{journal}', {folio}, 
+                {lfolio}, #{periode}#, 
+                {jour}, '{Libelle}', 
+                {debit}, {credit}, 
+                {Piece}, #{echeance}#, {CodeOperateur}, 
+                #{DateSysSaisie}#, {Etat}, 
+                {ModePaiement}, {CodeBanque}, {NumLigne}, 
+                '{TypeLigne}', {NumEditLettrePaiement},
+                {ReferenceTire}, {Rib}, {DomBanque},
+                '{Nature}', {PrctRepartition}, '{TypeSaisie}',
+                {ClientOuFrn}, {montant}, 
+                {EcheanceSimple}, '{CentreSimple}')
+                """   
+                
+        stat = self.exec_insert(sql_ecr)
+        if stat:
+            if sql_ana:
+                self.exec_insert(sql_ana)
+            elif sql_ech:
+                self.exec_insert(sql_ech)
+        else:
+            uid = 0
+
+        return uid
+
+
     
     def calc_centralisateurs(self):
         sql = """
@@ -655,7 +705,7 @@ class QueryCompta(object):
         Mise à jour de toute la table des centralisateurs
         """
         logging.info("purge des centralisateurs")
-        self.exec_select("DELETE FROM Centralisateur WHERE 1")
+        self.exec_insert("DELETE FROM Centralisateur WHERE 1")
         data = self.calc_centralisateurs()
 
         logging.info("Mise à jour de la table Centralisateurs")
@@ -668,7 +718,7 @@ class QueryCompta(object):
              debit15, credit15, 
              debit67, credit67) in data:
 
-            logging.debug("insert central {} {}".format(journal, periode))
+            # logging.debug("insert central {} {}".format(journal, periode))
             sql = f"""
                 INSERT INTO Centralisateur 
                 (CodeJournal, Periode, Folio, 

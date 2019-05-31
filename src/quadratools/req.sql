@@ -206,3 +206,23 @@ VALUES
     25, 'SUPERTEST', 999.99, 0.0, 'XXXXX', 'ROBT',
     #2019-05-28#, 0, 'E', #2019-06-15#, '019'
 )
+INSERT INTO Ecritures
+(NumUniq, NumeroCompte,
+CodeJournal, Folio,
+LigneFolio, PeriodeEcriture,
+JourEcriture, Libelle,
+MontantTenuDebit, MontantTenuCredit,
+NumeroPiece, CodeOperateur,
+DateSysSaisie, NumLigne,
+TypeLigne, ClientOuFrn,
+EcheanceSimple, CentreSimple)
+VALUES
+(36129, '44566000',
+'AC', 0,
+40, #2019-05-01 00:00:00#,
+1, 'TADAMM',
+106.55, 0.0,
+'PIECE1', 'BOT',
+#2019-05-31 09:40:19#, 0,
+'E', 0,
+'', '')
