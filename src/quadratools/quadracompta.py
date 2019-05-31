@@ -421,12 +421,26 @@ class QueryCompta(object):
         NumLigne = 0
         TypeLigne = "E"
         ClientOuFrn = 0
-        if not isinstance(echeance, datetime):
-            echeance = datetime(1899, 12, 30)
+
+        # Plusieurs variable à gérer si présence/absence d'une échéance
+        if echeance:
+            if not isinstance(echeance, datetime):
+                ecr_DtEcheance = datetime(1899, 12, 30)
+                ecr_EchSimple = datetime(1899, 12, 30)
+            else:
+                ecr_DtEcheance = datetime(1899, 12, 30)
+                ecr_EchSimple = echeance
+                ech_DtEcheance = echeance
+                ech_EchSimple = datetime(1899, 12, 30)
+        else:
+            ecr_DtEcheance = datetime(1899, 12, 30)
+            ecr_EchSimple = datetime(1899, 12, 30)  
+
         if piece:
             piece = str(piece)[0:10]
         else:
             piece = ""
+
         DateSysSaisie = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         periode = datetime(date.year,
@@ -440,7 +454,6 @@ class QueryCompta(object):
         Etat = 0
         ModePaiement = "NULL"
         CodeBanque = "NULL"
-        DateEcheance = datetime(1899, 12, 30)
         NumEditLettrePaiement = "NULL"
         ReferenceTire = "NULL"
         Rib = "NULL"
@@ -486,16 +499,15 @@ class QueryCompta(object):
             {lfolio}, #{periode}#, 
             {jour}, '{libelle}', 
             {debit}, {credit}, 
-            '{piece}', #{DateEcheance}#, '{CodeOperateur}', 
+            '{piece}', #{ecr_DtEcheance}#, '{CodeOperateur}', 
             #{DateSysSaisie}#, {Etat}, 
             {ModePaiement}, {NumLigne}, 
             '{TypeLigne}', {NumEditLettrePaiement},
             {ReferenceTire}, {Rib}, {DomBanque},
             '{Nature}', {PrctRepartition}, '{TypeSaisie}',
             {ClientOuFrn},
-            #{echeance}#, '{centre}')
+            #{ecr_EchSimple}#, '{centre}')
             """            
-        # logging.debug(sql_ecr)
         if centre:
             montant = abs(debit - credit)
             TypeLigne = "A"
@@ -534,11 +546,16 @@ class QueryCompta(object):
             TypeLigne = "T"
             ModePaiement = "''"
             CodeBanque = "''"
-            PrctRepartition = 0.0
+            ReferenceTire = "''"
+            Rib = "''"
+            DomBanque = "''"            
+            Centre = "''"
+            Nature = "NULL"
+            PrctRepartition = "NULL"
             TypeSaisie = "NULL"
             ClientOuFrn = "NULL"
-            EcheanceSimple = "NULL"
-            CentreSimple = ""
+            EcheanceSimple = datetime(1899, 12, 30)
+            CentreSimple = "''"
             sql_ech = f"""
                 INSERT INTO Ecritures
                 (NumUniq, NumeroCompte, 
@@ -551,7 +568,8 @@ class QueryCompta(object):
                 ModePaiement, CodeBanque, NumLigne, 
                 TypeLigne, NumEditLettrePaiement,
                 ReferenceTire, Rib, DomBanque,
-                Nature, PrctRepartition, TypeSaisie,
+                Centre, Nature, 
+                PrctRepartition, TypeSaisie,
                 ClientOuFrn, MontantAna,
                 EcheanceSimple, CentreSimple) 
                 VALUES 
@@ -560,14 +578,15 @@ class QueryCompta(object):
                 {lfolio}, #{periode}#, 
                 {jour}, '{Libelle}', 
                 {debit}, {credit}, 
-                {Piece}, #{echeance}#, {CodeOperateur}, 
+                {Piece}, #{ech_DtEcheance}#, {CodeOperateur}, 
                 #{DateSysSaisie}#, {Etat}, 
                 {ModePaiement}, {CodeBanque}, {NumLigne}, 
                 '{TypeLigne}', {NumEditLettrePaiement},
                 {ReferenceTire}, {Rib}, {DomBanque},
-                '{Nature}', {PrctRepartition}, '{TypeSaisie}',
+                {Centre}, {Nature}, 
+                {PrctRepartition}, {TypeSaisie},
                 {ClientOuFrn}, {montant}, 
-                {EcheanceSimple}, '{CentreSimple}')
+                #{ech_EchSimple}#, {CentreSimple})
                 """   
                 
         stat = self.exec_insert(sql_ecr)
