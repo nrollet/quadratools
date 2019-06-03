@@ -2,6 +2,7 @@
 venv
 *.mdb
 *.ldb
+*.pdf
 
 # C extensions
 *.so

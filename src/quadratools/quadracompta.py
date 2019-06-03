@@ -22,17 +22,6 @@ def progressbar(count, total):
                             str(count).zfill(len(str(total))),
                             str(total)), end=tail)
 
-def gen_image_name(reserved):
-    """
-    Création aléatoire de nom pour les images pieces
-    Avec vérif si le fichier existe déjà
-    """
-    name = "".join(random.choice(string.ascii_uppercase) for _ in range(10))
-    if name in reserved:
-        gen_image_name(reserved)
-    else:
-        return name
-
 def doc_rename(filename):
     """
     Outil pour renommer un document avec un nom aléatoire
@@ -406,7 +395,8 @@ class QueryCompta(object):
         return last_lfolio             
 
     def insert_ecrit(self, compte, journal, folio, date,
-                     libelle, debit, credit, piece="", centre="", echeance=""):
+                     libelle, debit=0.0, credit=0.0, 
+                     piece="", centre="", echeance=""):
         """
         Insere une nouvelle ligne dans la table ecritures de Quadra.
         Si le compte possède une affectation analytique, une deuxème
@@ -858,14 +848,66 @@ class QueryCompta(object):
             """
             self.exec_insert(sql)
 
-    def ajout_image(self, numuniq, filepath):
+    def _set_images_path(self):
         """
-        TODO : fonction pour gérer l'ajout d'une pièce
-        mettre à jour le champ refImage
-        copier le fichier vers le répertoire image 
-        (avec nom modifié pour gérer les doublons)
+        Renvoi chemin vers le dossier image
+        Le créé si absent
         """
-        pass
+        head, _ = os.path.split(self.chem_base)
+        chemin = os.path.join(head, "images")
+        if not os.path.isdir(chemin):
+            os.mkdir(chemin)
+        return chemin
+
+    def ajout_image(self, srce_file):
+        """
+        Copie un fichier vers le répertoire images
+        Pour éviter d'écraser un doublon on rajoute
+        un élément aléatoire dans le nom destination
+        Renvoi chemin complet du fichier copié
+        """
+        status = ""
+        if not os.path.isfile(srce_file):
+            logging.error(f"{srce_file} introuvable")
+            return status
+                
+        _, tail = os.path.split(srce_file)
+        head, tail = os.path.splitext(tail)
+        salt = "".join(random.choice(string.ascii_lowercase) for _ in range(3))
+        new_name = head + "_" + salt + tail
+
+        images_path = self._set_images_path() # destination folder
+        dest_file = os.path.join(images_path, new_name)
+        try:
+            status = shutil.copyfile(srce_file, dest_file)
+        except OSError as e:
+            logging.error(
+                f"Echec copie srce:{srce_file}, dest: {dest_file} \n{e}"
+            )
+        return status
+
+    def maj_refImage(self, filename, numUniq=0):
+        """
+        A la suite de la copie du fichier via ajout_image()
+        met à jour le champ refImage de l'écriture pointée par numUniq
+        retourne True si OK
+        """
+        status = False
+        if not numUniq:
+            return status
+        _, tail = os.path.split(filename)
+        self.exec_insert(
+            """
+            UPDATE 
+            """
+        )
+
+
+
+        
+
+
+        
 # ///////////////////////////////////////////////////////////////
 # ///////////////////////////////////////////////////////////////
 # ///////////////////////////////////////////////////////////////
@@ -1085,12 +1127,12 @@ if __name__ == '__main__':
     # cpta = "//srvquadra/qappli/quadra/database/cpta/ds2099/000175/qcompta.mdb"
     # cpta = "C:/quadra/database/cpta/DC/T00752/qcompta.mdb"
     # da = "C:/quadra/database/cpta/DC/T00752/QDR1812.mdb"
-    cpta = "assets/predi_nocent.mdb"
+    cpta = "assets/predi_test.mdb"
 
     QC = QueryCompta()
     QC.connect(cpta)
     print(QC.preffrn)
-    pp.pprint(QC.comptes)
+    dest = QC.ajout_image("assets/facture1.pdf")
 
     # QDA = QueryDossierAnnuel()
     # QDA.connect(da)

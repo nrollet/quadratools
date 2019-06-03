@@ -1,5 +1,7 @@
 import pytest
 import pyodbc
+import os
+import hashlib
 from random import choice
 from datetime import datetime
 from quadratools.quadracompta import QueryCompta
@@ -19,7 +21,15 @@ from quadratools.quadracompta import QueryCompta
 #     yield cursor
 #     cnxn.rollback()
 
-
+def hashfile(path, blocksize = 65536):
+    afile = open(path, 'rb')
+    hasher = hashlib.md5()
+    buf = afile.read(blocksize)
+    while len(buf) > 0:
+        hasher.update(buf)
+        buf = afile.read(blocksize)
+    afile.close()
+    return hasher.hexdigest()
 
 
 def test_maj_centralisateurs():
@@ -236,7 +246,6 @@ def test_insert_ecrit():
         folio=0, 
         date=datetime(2019, 5, 22),
         libelle="LIGNE AVEC ANALYTIQUE",
-        debit=0.0,
         credit=7.26,
         piece="PIECE2",
     )
@@ -247,7 +256,6 @@ def test_insert_ecrit():
         date=datetime(2019, 5, 22),
         libelle="LIGNE AVEC ANALYTIQUE",
         debit=6.05,
-        credit=0.0,
         piece="PIECE2",
         centre="019"
     )
@@ -258,7 +266,6 @@ def test_insert_ecrit():
         date=datetime(2019, 5, 22),
         libelle="LIGNE AVEC ANALYTIQUE",
         debit=1.21,
-        credit=0.0,
         piece="PIECE2",
     )
     data_test = Qtest.exec_select(sql_select)
@@ -268,4 +275,48 @@ def test_insert_ecrit():
     Qtest.close()
 
 
+def test_ajout_image():
+    """
+    test la copie d'un fichier vers le dossier images
+    Compare le hash MD5 de la source avec la destination
+    """
+    source_fact = "assets/facture1.pdf"
+    hash_ref = hashfile(source_fact)
 
+    Qtest = QueryCompta()
+    Qtest.connect("assets/predi_test.mdb")
+    dest_fact = Qtest.ajout_image(source_fact)
+    hash_test = hashfile(dest_fact)
+
+    assert hash_ref == hash_test
+        
+    os.remove(dest_fact)
+    Qtest.close()
+
+def test_maj_refImage():
+    """
+    teste la fonction maj_refImage()
+    """
+    Qref = QueryCompta()
+    Qref.connect("assets/predi_ref.mdb")
+    imageRef_ref = Qref.exec_select("SELECT refImage FROM Ecritures WHERE NumUniq=8982")[0][0]
+
+    Qtest = QueryCompta()
+    Qtest.connect("assets/predi_test.mdb")
+    Qtest.exec_insert("UPDATE Ecritures SET refImage='' WHERE NumUniq=8982")
+    imageRef_test = Qtest.exec_select("SELECT refImage FROM Ecritures WHERE NumUniq=8982")[0][0]
+
+    print(imageRef_ref, imageRef_test)
+    numuniq = 8982
+    image_name = "000874_52401.pdf"
+    Qtest.maj_refImage(numuniq, image_name)
+    imageRef_test = Qtest.exec_select("SELECT refImage FROM Ecritures WHERE NumUniq=8982")[0][0]
+    print(imageRef_ref, imageRef_test)
+
+    Qref.close()
+    Qtest.close()
+
+
+
+if __name__ == "__main__":
+    test_maj_refImage()
