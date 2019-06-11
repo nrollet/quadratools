@@ -176,12 +176,11 @@ class QueryCompta(object):
 
     def exec_insert(self, sql_string):
         """
-        Pour exécuter une requete sql passée en argument
+        Pour exécuter un insert/update sql passé en argument
         """
         status = False
         try:
             self.cursor.execute(sql_string)
-            # logging.debug("Insert worked")
             status = True
         except pyodbc.Error:
             logging.error("erreur requete base {} \n {}".format(
@@ -221,7 +220,9 @@ class QueryCompta(object):
         return dic
 
     def get_solde_compte(self, compte):
-
+        """
+        Calcule le solde d'un compte (dossier complet)
+        """
         sql = """
             SELECT
             SUM(MontantTenuDebit) AS Debit,
@@ -543,7 +544,6 @@ class QueryCompta(object):
             PrctRepartition = "NULL"
             TypeSaisie = "NULL"
             ClientOuFrn = "NULL"
-            EcheanceSimple = datetime(1899, 12, 30)
             CentreSimple = "''"
             sql_ech = f"""
                 INSERT INTO Ecritures
@@ -588,10 +588,12 @@ class QueryCompta(object):
             uid = 0
 
         return uid
-
-
     
     def calc_centralisateurs(self):
+        """
+        Calcule des soldes qui vont premettre
+        la mise à jour de la table centralisateur
+        """
         sql = """
         SELECT
             NBL.CodeJournal, NBL.PeriodeEcriture, NBL.Folio,
@@ -717,7 +719,6 @@ class QueryCompta(object):
         data = self.calc_centralisateurs()
 
         logging.info("Mise à jour de la table Centralisateurs")
-        count = 1
 
         for (journal, periode, folio,
              nbligne, prligne, 
@@ -828,6 +829,11 @@ class QueryCompta(object):
         return data
 
     def maj_solde_comptes(self):
+        """
+        Mise à jour des champs Debit, Credit,
+        DebitHorsEx, CreditHorsEx, NbEcritures
+        de la table comptes
+        """
 
         data = self.calc_solde_comptes()
 
@@ -894,17 +900,19 @@ class QueryCompta(object):
         """
         status = False
         if not numUniq:
+            logging.error("NumUniq à 0")
             return status
+
         _, tail = os.path.split(filename)
-        self.exec_insert(
+        if self.exec_insert(
+            f"""
+            UPDATE Ecritures SET refImage='{tail}' 
+            WHERE NumUniq={numUniq}
             """
-            UPDATE 
-            """
-        )
+        ) :
+            status = True
 
-
-
-        
+        return status
 
 
         
