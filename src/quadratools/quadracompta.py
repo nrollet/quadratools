@@ -914,6 +914,24 @@ class QueryCompta(object):
 
         return status
 
+    def limites_dates_ecr(self):
+        """
+        Pour obtenir la plage sur laquelle s'étalent
+        les écritures
+        si le dossier est sur un seul exercice on renvoit les dates d'exercice
+        sinon on requête la base pour obtenir la date de l'écriture la plus récente
+        """
+        # import datetime
+        debut = self.exedeb
+        fin = self.exefin
+        sql = "SELECT MAX(PeriodeEcriture) FROM Ecritures"
+        rows = list(self.exec_select(sql))
+        last = [x for x in rows[0]][0]
+        if isinstance(last, datetime):
+            if last > fin:
+                fin = last
+        return (debut, fin)
+
 
         
 # ///////////////////////////////////////////////////////////////
@@ -1131,16 +1149,17 @@ if __name__ == '__main__':
                         format='%(funcName)s\t\t%(levelname)s - %(message)s')
 
 
-    # cpta = "//srvquadra/qappli/quadra/database/cpta/da209912/Form05/qcompta.mdb"
+    cpta = "//srvquadra/qappli/quadra/database/cpta/dc/Form05/qcompta.mdb"
     # cpta = "//srvquadra/qappli/quadra/database/cpta/ds2099/000175/qcompta.mdb"
     # cpta = "C:/quadra/database/cpta/DC/T00752/qcompta.mdb"
     # da = "C:/quadra/database/cpta/DC/T00752/QDR1812.mdb"
-    cpta = "assets/predi_test.mdb"
+    # cpta = "assets/predi_test.mdb"
 
     QC = QueryCompta()
     QC.connect(cpta)
     print(QC.preffrn)
-    dest = QC.ajout_image("assets/facture1.pdf")
+    print(QC.limites_dates_ecr())
+    # dest = QC.ajout_image("assets/facture1.pdf")
 
     # QDA = QueryDossierAnnuel()
     # QDA.connect(da)

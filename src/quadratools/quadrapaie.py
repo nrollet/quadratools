@@ -10,13 +10,12 @@ from collections import namedtuple
 from datetime import datetime, timedelta
 
 def add_one_month(dt0):
-
     dt1 = dt0.replace(day=1)
     dt2 = dt1 + timedelta(days=32)
-    dt3 = dt2.replace(day=1)
+    dt3 = dt2.replace(day=1) # ==> 1er jour du mois d'après
     return dt3
 
-
+NO_DATE = datetime(1899, 12, 30, 0, 0)
 
 class QueryPaie(object):
 
@@ -25,6 +24,8 @@ class QueryPaie(object):
         self.conx = ""
         self.db_path = ""
         self.employes = []
+        self.presents = []
+        self.absents = []
            
     def connect(self, db_path):
         """
@@ -45,10 +46,16 @@ class QueryPaie(object):
 
         except pyodbc.Error:
             logging.error("erreur requete base {} \n {}".format(
-                self.db_path, sys.exc_info()[1]))
+            self.db_path, sys.exc_info()[1]))
+            return False
         except:
             logging.error("erreur ouverture base {} \n {}".format(
-                self.db_path, sys.exc_info()[0]))
+            self.db_path, sys.exc_info()[0]))
+            return False
+
+        self.employes = self._employes()
+
+        return True
 
     def close(self):
         logging.info('Fermeture de la base')
@@ -72,7 +79,9 @@ class QueryPaie(object):
             logging.error("Requete SQL : {}".format(sql_string))
         return data    
 
-    def Employes(self):
+    def _employes(self):
+
+        employes = []
 
         sql = """
         SELECT 
@@ -99,15 +108,13 @@ class QueryPaie(object):
                 nom =  nommar
             entree = entree1
             sortie = datetime(1899, 12, 30, 0, 0)
-            nodate = datetime(1899, 12, 30, 0, 0)
             if entree2 > entree1 : 
                 entree = entree2
-            elif entree2 >= sortie1 and entree2 != nodate:
+            elif entree2 >= sortie1 and entree2 != NO_DATE:
                 entree = entree2
-            if sortie1 >= entree1 and entree2 == nodate:
+            if sortie1 >= entree1 and entree2 == NO_DATE:
                 sortie = sortie1
-            elif sortie2 >= entree2 and sortie2 != nodate: 
-                print(nom)
+            elif sortie2 >= entree2 and sortie2 != NO_DATE: 
                 sortie = sortie2
 
             employe = Employe(  
@@ -118,56 +125,28 @@ class QueryPaie(object):
                 entree,
                 sortie)
 
-            self.employes.append(employe)
+            employes.append(employe)
 
-        return self.employes
+        return employes
 
-
-    def SalariesPresents(self, periode):
-        # on ajoute un mois pour la requête
-        for employes in self.employes:
+    def employes_presents(self, periode):
+        """
+        Filtre la liste des salariés pour ne retenir 
+        que les salariés présents sur le mois donné
+        """
+        periode = periode.replace(day=1)
+        presents = []
+        for employe in self.employes:
             if (
-                employe.entree <= periode and
-                employe.
-            )
-            
-
+                (employe.entree <= periode and
+                employe.sortie == NO_DATE) or
+                (employe.entree <= periode and
+                employe.sortie >= periode)):
+                presents.append(employe)
         
-
-    def creaDict (self) :
-
-        if self.dataEmp :
-
-            jsdata = {}
-            cle = ""
-
-            for (numero, 
-                 nomnaiss, 
-                 nommarit, 
-                 prenom, 
-                 matrmcdo) in self.dataEmp :
-
-                if matrmcdo :
-                    cle = matrmcdo.zfill(6)
-                else :
-                    cle = numero.replace(' ','').zfill(6)
-
-                subdir = {'NomNaiss':'', 'NomMarit':'', 'Prenom':'', 'matrMcdo':'', 'absDsn':''}
-
-                jsdata.setdefault(cle, subdir)
-
-                jsdata[cle]['NomNaiss'] = nomnaiss
-                jsdata[cle]['NomMarit'] = nommarit
-                jsdata[cle]['Prenom'] = prenom
-                jsdata[cle]['matrQdr'] = numero.replace(' ','')
-                #jsdata[item[0]]['absDsn'] = item[]
-
-        else :
-            logging.warning("La requête SQL ne retourne aucune donnée")
+        return presents
         
-        logging.debug(jsdata)
-        return jsdata
-
+         
 class QueryPaieSalariesNoPer(object):
 
     def __init__(self, chem_base):
@@ -210,39 +189,6 @@ class QueryPaieSalariesNoPer(object):
         logging.debug (self.dataEmp)
 
         
-
-    def creaDict (self) :
-
-        if self.dataEmp :
-
-            jsdata = {}
-            cle = ""
-
-            for (numero, 
-                 nomnaiss, 
-                 nommarit, 
-                 prenom, 
-                 matrmcdo) in self.dataEmp :
-
-
-                    cle = numero.replace(' ','')
-
-                    subdir = {'NomNaiss':'', 'NomMarit':'', 'Prenom':'', 'matrMcdo':'', 'absDsn':''}
-
-                    jsdata.setdefault(cle, subdir)
-
-                    jsdata[cle]['NomNaiss'] = nomnaiss
-                    jsdata[cle]['NomMarit'] = nommarit
-                    jsdata[cle]['Prenom'] = prenom
-                    jsdata[cle]['matrMcdo'] = matrmcdo
-                    #jsdata[item[0]]['absDsn'] = item[]
-
-        else :
-            logging.warning("La requête SQL ne retourne aucune donnée")
-        
-        logging.debug(jsdata)
-        return jsdata
-
 
 class QueryQPaieLight(object): 
 
@@ -356,10 +302,22 @@ if __name__ == '__main__':
     pp = pprint.PrettyPrinter(indent=4)
     logging.basicConfig(handlers=[logging.basicConfig(level=logging.INFO, format='%(asctime)s -- %(module)s -- %(levelname)s -- %(message)s')])
 
-    periode = datetime(2019, 5, 1)
+    db = "//srvquadra/qappli/quadra/database/paie/FORM05/qpaie.mdb"
+    # db = "assets/thibor.mdb"
+
+
+    periode = datetime(2019, 6, 1)
+    print(add_one_month(periode))
     QP = QueryPaie()
-    QP.connect("assets/thibor.mdb")
-    pp.pprint(QP.Employes())
+    QP.connect(db)
+    presents = QP.employes_presents(periode)
+    # pp.pprint(presents)
+    pp.pprint(
+        set(presents)
+    )
+
+
+
     QP.close()
     # dossier = input("Saisie code dossier : ").zfill(6)
     # db = "//srvquadra/qappli/quadra/database/paie/" + dossier + "/qpaie.mdb"
