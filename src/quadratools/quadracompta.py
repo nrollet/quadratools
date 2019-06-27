@@ -5,7 +5,7 @@ import random
 import string
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def progressbar(count, total):
     """
@@ -21,6 +21,15 @@ def progressbar(count, total):
     print("[{}] {}/{}".format(bar[0:level].ljust(40),
                             str(count).zfill(len(str(total))),
                             str(total)), end=tail)
+
+def end_of_month(dt0):
+    """
+    Renvoi le dernier jour du mois de la date donnée
+    """
+    dt1 = dt0.replace(day=1)
+    dt2 = dt1 + timedelta(days=32)
+    dt3 = dt2.replace(day=1) - timedelta(days=1)
+    return dt3
 
 def doc_rename(filename):
     """
@@ -929,6 +938,7 @@ class QueryCompta(object):
         last = [x for x in rows[0]][0]
         if isinstance(last, datetime):
             if last > fin:
+                last = end_of_month(last)
                 fin = last
         return (debut, fin)
 
